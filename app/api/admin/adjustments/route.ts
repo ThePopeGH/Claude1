@@ -1,0 +1,17 @@
+import { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-api';
+import { recalculateInvoice } from '@/lib/invoices';
+
+export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req, true); if (auth.error) return auth.error;
+  return Response.json(await prisma.adjustment.findMany({ include: { user: true }, orderBy: { date: 'desc' }, take: 200 }));
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await requireAdmin(req); if (auth.error) return auth.error;
+  const data = await req.json();
+  const created = await prisma.adjustment.create({ data: { ...data, adminUserId: auth.session!.sub, date: new Date(data.date) } });
+  await recalculateInvoice(data.userId, data.year, data.month);
+  return Response.json(created, { status: 201 });
+}

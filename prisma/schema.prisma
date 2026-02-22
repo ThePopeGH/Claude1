@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  ADMIN
+  VIEWER
+}
+
+enum ActorType {
+  KIOSK
+  ADMIN
+  SYSTEM
+}
+
+model User {
+  id            String          @id @default(cuid())
+  name          String
+  photoUrl      String?
+  active        Boolean         @default(true)
+  consumptions  Consumption[]
+  payments      Payment[]
+  adjustments   Adjustment[]
+  monthlyInvoices MonthlyInvoice[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Drink {
+  id             String          @id @default(cuid())
+  name           String
+  priceCents     Int
+  imageUrl       String?
+  active         Boolean         @default(true)
+  minimumStock   Int             @default(0)
+  consumptions   Consumption[]
+  stockMovements StockMovement[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Consumption {
+  id               String   @id @default(cuid())
+  userId           String
+  drinkId          String
+  qty              Int
+  priceCentsAtTime Int
+  createdAt        DateTime @default(now())
+  clientUuid       String   @unique
+  user             User     @relation(fields: [userId], references: [id])
+  drink            Drink    @relation(fields: [drinkId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([drinkId, createdAt])
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  drinkId     String
+  deltaQty    Int
+  reason      String
+  note        String?
+  adminUserId String
+  createdAt   DateTime @default(now())
+  drink       Drink    @relation(fields: [drinkId], references: [id])
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  userId      String
+  amountCents Int
+  paidAt      DateTime
+  year        Int
+  month       Int
+  method      String
+  note        String?
+  adminUserId String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+
+  @@index([userId, year, month])
+}
+
+model Adjustment {
+  id          String   @id @default(cuid())
+  userId      String
+  amountCents Int
+  date        DateTime
+  year        Int
+  month       Int
+  description String
+  adminUserId String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+
+  @@index([userId, year, month])
+}
+
+model MonthlyInvoice {
+  id         String   @id @default(cuid())
+  userId     String
+  year       Int
+  month      Int
+  totalCents Int      @default(0)
+  paid       Boolean  @default(false)
+  paidAt     DateTime?
+  user       User     @relation(fields: [userId], references: [id])
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, year, month])
+}
+
+model AdminUser {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  passwordHash  String
+  role          AdminRole
+  active        Boolean       @default(true)
+  stockMovements StockMovement[]
+  payments      Payment[]
+  adjustments   Adjustment[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime      @default(now())
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  actorType ActorType
+  actorId   String
+  action    String
+  entity    String
+  metaJson  Json?
+  createdAt DateTime  @default(now())
+  adminUserId String?
+  adminUser AdminUser? @relation(fields: [adminUserId], references: [id])
+
+  @@index([createdAt])
+}
+
+model AppConfig {
+  id                    String @id @default("default")
+  allowNegativeStock    Boolean @default(true)
+  autoMarkPaidOnZero    Boolean @default(true)
+  updatedAt             DateTime @updatedAt
+}
